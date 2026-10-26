@@ -1,0 +1,50 @@
+### 1. GET все автомобили
+GET http://localhost:5293/api/cars
+
+### 2. POST — создать новый автомобиль
+POST http://localhost:5293/api/cars
+Content-Type: application/json
+
+{
+  "brand": "Audi",
+  "model": "A6",
+  "year": 2024,
+  "pricePerDay": 10000,
+  "isAvailable": true
+}
+
+### 3. GET — проверить, что Audi появилась
+GET http://localhost:5293/api/cars
+
+### 4. PUT — обновить автомобиль с Id=1 (Toyota -> Toyota New)
+PUT http://localhost:5293/api/cars/1
+Content-Type: application/json
+
+{
+  "brand": "Toyota",
+  "model": "Camry New",
+  "year": 2025,
+  "pricePerDay": 6000,
+  "isAvailable": false
+}
+
+### 5. PUT — обновить несуществующий Id=999 (404)
+PUT http://localhost:5293/api/cars/999
+Content-Type: application/json
+
+{
+  "brand": "Ghost",
+  "model": "Unknown",
+  "year": 2020,
+  "pricePerDay": 1000,
+  "isAvailable": false
+}
+
+### 6. DELETE — удалить автомобиль с Id=2 (BMW)
+DELETE http://localhost:5293/api/cars/2
+
+### 7. DELETE — удалить несуществующий Id=999 (404)
+DELETE http://localhost:5293/api/cars/999
+
+### 8. GET — проверить, что BMW исчезла
+GET http://localhost:5293/api/cars
