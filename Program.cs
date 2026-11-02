@@ -9,12 +9,9 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// ===== Swagger UI (только в режиме Development) =====
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+// ===== Swagger UI (включён всегда, чтобы работал на Render) =====
+app.UseSwagger();
+app.UseSwaggerUI();
 
 // ===== Блок 1 =====
 app.MapGet("/", () => "Minimal API работает!");
