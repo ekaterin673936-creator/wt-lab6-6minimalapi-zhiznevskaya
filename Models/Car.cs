@@ -1,4 +1,4 @@
-namespace wt_lab6_6minimalapi_zhiznevskaya.Models;
+namespace wt_lab7_7postgres_efcore_zhiznevskaya.Models;
 
 public class Car
 {
@@ -8,4 +8,7 @@ public class Car
     public int Year { get; set; }
     public decimal PricePerDay { get; set; }
     public bool IsAvailable { get; set; } = true;
+    
+    // Новое свойство
+    public DateTime CreatedAt { get; set; }
 }

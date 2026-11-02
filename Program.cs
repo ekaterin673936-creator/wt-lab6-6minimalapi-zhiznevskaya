@@ -1,62 +1,106 @@
-using wt_lab6_6minimalapi_zhiznevskaya.Data;
-using wt_lab6_6minimalapi_zhiznevskaya.Models;
+using Microsoft.EntityFrameworkCore;
+using wt_lab7_7postgres_efcore_zhiznevskaya.Data;
+using wt_lab7_7postgres_efcore_zhiznevskaya.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ===== OpenAPI / Swagger =====
+// ===== Подключение к PostgreSQL =====
+// 1. Пробуем взять DATABASE_URL (для Render)
+var databaseUrl = builder.Configuration["DATABASE_URL"];
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+if (!string.IsNullOrWhiteSpace(databaseUrl))
+{
+    // Если мы на Render, преобразуем DATABASE_URL в строку подключения
+    var uri = new Uri(databaseUrl);
+    var userInfo = uri.UserInfo.Split(':', 2);
+    connectionString = $"Host={uri.Host};Port={uri.Port};Database={uri.AbsolutePath.TrimStart('/')};Username={Uri.UnescapeDataString(userInfo[0])};Password={Uri.UnescapeDataString(userInfo[1])};SSL Mode=Disable";
+}
+
+builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
+
+// ===== Swagger =====
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// ===== Swagger UI (включён всегда, чтобы работал на Render) =====
+// ===== Swagger UI =====
 app.UseSwagger();
 app.UseSwaggerUI();
 
-// ===== Блок 1 =====
+// ===== Автоматическое применение миграций =====
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+}
+
+// ===== Swagger UI =====
+app.UseSwagger();
+app.UseSwaggerUI();
+
+// ===== Автоматическое применение миграций при запуске =====
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+}
+
+// ===== Эндпоинты =====
 app.MapGet("/", () => "Minimal API работает!");
 
-app.MapGet("/api/info", () =>
+app.MapGet("/api/info", () => new
 {
-    return new
-    {
-        Application = "Web Technologies",
-        Technology = "ASP.NET Core Minimal API",
-        Version = "1.0"
-    };
+    Application = "Web Technologies",
+    Technology = "ASP.NET Core Minimal API + EF Core",
+    Version = "2.0"
 });
 
-// ===== Блок 3: GET =====
-app.MapGet("/api/cars", (string? search) =>
+// CRUD-эндпоинты добавим на следующем шаге
+
+app.Run();
+// ===== Блок 4: CRUD через EF Core =====
+
+// 1. GET /api/cars — получить список всех машин
+app.MapGet("/api/cars", async (AppDbContext db) =>
 {
-    var cars = CarStore.Cars.AsEnumerable();
-    if (!string.IsNullOrWhiteSpace(search))
-    {
-        cars = cars.Where(c => c.Brand.Contains(search, StringComparison.OrdinalIgnoreCase)
-                            || c.Model.Contains(search, StringComparison.OrdinalIgnoreCase));
-    }
+    var cars = await db.Cars.ToListAsync();
     return Results.Ok(cars);
 });
 
-app.MapGet("/api/cars/{id}", (int id) =>
+// 2. GET /api/cars/{id} — получить одну машину по Id
+app.MapGet("/api/cars/{id}", async (int id, AppDbContext db) =>
 {
-    var car = CarStore.Cars.FirstOrDefault(c => c.Id == id);
+    var car = await db.Cars.FirstOrDefaultAsync(x => x.Id == id);
     if (car == null) return Results.NotFound();
     return Results.Ok(car);
 });
 
-// ===== Блок 4: POST =====
-app.MapPost("/api/cars", (Car car) =>
+// 3. GET /api/cars/search — поиск по марке (LINQ)
+app.MapGet("/api/cars/search", async (string? search, AppDbContext db) =>
 {
-    car.Id = CarStore.Cars.Count == 0 ? 1 : CarStore.Cars.Max(c => c.Id) + 1;
-    CarStore.Cars.Add(car);
+    var query = db.Cars.AsQueryable();
+    if (!string.IsNullOrWhiteSpace(search))
+    {
+        query = query.Where(x => x.Brand.ToLower().Contains(search.ToLower()));
+    }
+    var cars = await query.ToListAsync();
+    return Results.Ok(cars);
+});
+
+// 4. POST /api/cars — добавить новую машину
+app.MapPost("/api/cars", async (Car car, AppDbContext db) =>
+{
+    db.Cars.Add(car);
+    await db.SaveChangesAsync();
     return Results.Created($"/api/cars/{car.Id}", car);
 });
 
-// ===== Блок 5: PUT + DELETE =====
-app.MapPut("/api/cars/{id}", (int id, Car updatedCar) =>
+// 5. PUT /api/cars/{id} — обновить машину
+app.MapPut("/api/cars/{id}", async (int id, Car updatedCar, AppDbContext db) =>
 {
-    var car = CarStore.Cars.FirstOrDefault(c => c.Id == id);
+    var car = await db.Cars.FirstOrDefaultAsync(x => x.Id == id);
     if (car == null) return Results.NotFound();
 
     car.Brand = updatedCar.Brand;
@@ -65,16 +109,17 @@ app.MapPut("/api/cars/{id}", (int id, Car updatedCar) =>
     car.PricePerDay = updatedCar.PricePerDay;
     car.IsAvailable = updatedCar.IsAvailable;
 
+    await db.SaveChangesAsync();
     return Results.Ok(car);
 });
 
-app.MapDelete("/api/cars/{id}", (int id) =>
+// 6. DELETE /api/cars/{id} — удалить машину
+app.MapDelete("/api/cars/{id}", async (int id, AppDbContext db) =>
 {
-    var car = CarStore.Cars.FirstOrDefault(c => c.Id == id);
+    var car = await db.Cars.FirstOrDefaultAsync(x => x.Id == id);
     if (car == null) return Results.NotFound();
 
-    CarStore.Cars.Remove(car);
+    db.Cars.Remove(car);
+    await db.SaveChangesAsync();
     return Results.NoContent();
 });
-
-app.Run();
